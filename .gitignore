@@ -6,5 +6,7 @@
 *.pem
 npm-debug.log*
 .env*
+!.env.example
 /coverage
 next-env.d.ts
+/tsconfig.tsbuildinfo
