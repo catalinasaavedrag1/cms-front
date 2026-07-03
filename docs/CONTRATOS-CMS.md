@@ -77,6 +77,28 @@ En prod, el gateway los inyecta y estos valores del front pasan a ser
 irrelevantes (el edge los sobreescribe). Paginación por headers `x-janis-page` /
 `x-janis-page-size`.
 
+### Decisión de arquitectura — flujo de identidad del CMS (cerrada)
+
+```
+Usuario interno ─► Front CMS ─► id-service (POST /api/idservice/auth/login) → JWT
+Front CMS ─► cms-service (con el JWT + headers de gateway)
+```
+
+- **id-service es el emisor de identidad de la plataforma** (usuarios, roles,
+  permisos): define *quién eres*. `comerce-service` define *dónde operas*
+  (empresa, canal, tienda). Ninguno reemplaza al otro.
+- **cms-service NO valida tokens por sí mismo**: confía en los headers que
+  inyecta el api-gateway tras autenticar contra id-service (`x-user-id`,
+  `x-user-permissions`). Este es el modelo de TODO el monorepo (servicios
+  internos gateway-fronted); cambiarlo solo en cms-service crearía una
+  inconsistencia. **Requisito de producción**: cms-service nunca expuesto
+  directo a internet — siempre detrás del gateway.
+- Validaciones de permisos finos (p. ej. `cms.banner.create`,
+  `cms.page.publish`, publicar por sales-channel) viven en los decoradores
+  `@Permissions(...)` de cms-service y se alimentan de `x-user-permissions`.
+  Con el gateway integrado a id-service, esos permisos son los reales del
+  usuario; en dev directo son `*`.
+
 ---
 
 ## 5. Contrato de cms-service
