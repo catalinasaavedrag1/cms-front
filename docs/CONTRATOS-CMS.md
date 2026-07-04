@@ -141,7 +141,7 @@ Front CMS ─► cms-service (con el JWT + headers de gateway)
 
 | Dominio | Estado |
 |---|---|
-| Banners | ✅ real (components HERO_BANNER) → mock fallback |
+| Banners | ✅ lecturas **y ESCRITURAS**: crear/editar (`POST/PATCH /components`), publicar/despublicar/archivar (PATCH `status`), duplicar. El placement viaja como código (`home-hero`) para que el BFF lo encuentre. Sin backend: modo ejemplo con aviso. |
 | Media | ✅ real (`/media`) → mock fallback |
 | Landing pages | ✅ real (`/pages` pageType=LANDING) → mock fallback |
 | Campañas | ✅ real (`/campaigns`) → mock fallback |
@@ -246,7 +246,11 @@ contra payloads reales).
   integrado (equivalente al gap #5 del contrato del BFF).
 - **Dashboard**: cms-service no expone `/dashboard`. Definir uno agregado o
   componerlo en el front desde `/audit` + `/publishing/jobs`.
-- **Escritura/workflow**: `cms-service.api.ts` expone lecturas y el workflow
-  clave (`publish`/`unpublish`/`submit-review`). Los builders (crear/editar
-  banner, página, menú…) usan hoy estado local; conectarlos a `POST/PATCH` es el
-  siguiente paso por dominio.
+- **Escritura/workflow**: ✅ **banners es el piloto completo** (crear/editar/
+  publicar/archivar/duplicar reales, con carga del banner real en modo edición
+  y degradación a "modo ejemplo" con aviso). El patrón para el resto de
+  builders (menús, landings, campañas): adaptador inverso en `adapters.ts` +
+  mutaciones en su `cms-*.api.ts` + cablear los botones del builder con
+  `canPersist()`/toasts, igual que `BannerEditor`. Los `components` no tienen
+  workflow de aprobación (publicar = PATCH status); pages/contents sí
+  (`submit-review`/`approve`/`publish`, ya expuestos).

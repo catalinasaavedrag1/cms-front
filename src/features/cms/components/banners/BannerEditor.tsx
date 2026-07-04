@@ -1,8 +1,10 @@
 'use client'
 
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { banners } from '@/features/cms/mocks'
+import { cmsBannersApi } from '@/features/cms/services/cms-banners.api'
+import { toUiError } from '@/features/cms/services/simulate'
 import { CHANNEL_LABEL, CMS_BASE, DEVICE_LABEL } from '@/features/cms/constants'
 import type { CmsChannel, CmsDevice } from '@/features/cms/types'
 import { ActionMenu, Button, CmsIcon, Field, PageHeader, SectionHeader, useToast } from '@/features/cms/components/ui'
@@ -20,6 +22,9 @@ export function BannerEditor({ bannerId }: { bannerId?: string }) {
   const existing = bannerId ? banners.find((b) => b.id === bannerId) : undefined
   const [tab, setTab] = useState('resumen')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  // Id real en cms-service (en edición viene de la URL; al crear, del POST).
+  const [persistedId, setPersistedId] = useState<string | undefined>(bannerId)
   const toast = useToast()
 
   const [f, setF] = useState({
@@ -38,6 +43,34 @@ export function BannerEditor({ bannerId }: { bannerId?: string }) {
   })
   const set = (k: keyof typeof f, v: string | number) => setF((s) => ({ ...s, [k]: v }))
 
+  // Modo edición con backend real: el banner se carga de cms-service y se
+  // siembra el formulario (los ids reales no existen en los mocks locales).
+  useEffect(() => {
+    if (!bannerId || existing || !cmsBannersApi.canPersist()) return
+    let alive = true
+    cmsBannersApi.get(bannerId).then((b) => {
+      if (!alive || !b) return
+      setF({
+        internalName: b.internalName,
+        title: b.title,
+        subtitle: b.subtitle,
+        cta: b.cta,
+        link: b.link,
+        placement: b.placement || 'Home · Hero',
+        channel: b.channel,
+        device: b.device,
+        priority: b.priority,
+        alt: b.alt,
+        startAt: b.startAt,
+        endAt: b.endAt,
+      })
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bannerId])
+
   const [image, setImage] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -48,7 +81,76 @@ export function BannerEditor({ bannerId }: { bannerId?: string }) {
     r.readAsDataURL(file)
   }
 
-  const save = () => { setSaved(true); toast.push('success', 'Banner guardado'); setTimeout(() => router.push(`${CMS_BASE}/banners`), 800) }
+  /** Guarda en cms-service (create/update). Sin backend: modo ejemplo (no persiste). */
+  const save = async () => {
+    if (!cmsBannersApi.canPersist()) {
+      setSaved(true)
+      toast.push('info', 'Banner guardado (modo ejemplo: sin backend, no persiste)')
+      setTimeout(() => router.push(`${CMS_BASE}/banners`), 800)
+      return
+    }
+    setSaving(true)
+    try {
+      const savedBanner = persistedId
+        ? await cmsBannersApi.update(persistedId, f, image)
+        : await cmsBannersApi.create(f, image)
+      setPersistedId(savedBanner.id)
+      setSaved(true)
+      toast.push('success', 'Banner guardado en el CMS')
+      setTimeout(() => router.push(`${CMS_BASE}/banners`), 800)
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo guardar el banner'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Publica: visible para el BFF → aparece en la tienda. Requiere guardar antes. */
+  const publish = async () => {
+    if (!cmsBannersApi.canPersist()) {
+      toast.push('info', 'Publicado (modo ejemplo: sin backend, no persiste)')
+      return
+    }
+    if (!persistedId) {
+      toast.push('error', 'Guarda el banner antes de publicarlo')
+      return
+    }
+    try {
+      await cmsBannersApi.publish(persistedId)
+      toast.push('success', 'Banner publicado: ya está disponible para la tienda')
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo publicar el banner'))
+    }
+  }
+
+  const duplicate = async () => {
+    if (!cmsBannersApi.canPersist() || !persistedId) {
+      toast.push('info', 'Banner duplicado (modo ejemplo)')
+      return
+    }
+    try {
+      const copy = await cmsBannersApi.duplicate(persistedId)
+      toast.push('success', 'Banner duplicado')
+      router.push(`${CMS_BASE}/banners/${copy.id}`)
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo duplicar'))
+    }
+  }
+
+  const archive = async () => {
+    if (!cmsBannersApi.canPersist() || !persistedId) {
+      toast.push('info', 'Banner archivado (modo ejemplo)')
+      router.push(`${CMS_BASE}/banners`)
+      return
+    }
+    try {
+      await cmsBannersApi.archive(persistedId)
+      toast.push('success', 'Banner archivado')
+      router.push(`${CMS_BASE}/banners`)
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo archivar'))
+    }
+  }
 
   return (
     <div>
@@ -58,14 +160,12 @@ export function BannerEditor({ bannerId }: { bannerId?: string }) {
         status={existing?.status ?? 'draft'}
         actions={
           <>
-            <Button variant="outline-green" icon="apply">Aplicar</Button>
-            <Button variant="green" icon="save" onClick={save} disabled={saved}>{saved ? 'Guardado' : 'Guardar'}</Button>
-            <Button variant="blue" icon="plus">Guardar & crear</Button>
+            <Button variant="outline-green" icon="apply" onClick={publish}>Publicar</Button>
+            <Button variant="green" icon="save" onClick={save} disabled={saved || saving}>{saving ? 'Guardando…' : saved ? 'Guardado' : 'Guardar'}</Button>
             <Button variant="ghost" icon="cancel" onClick={() => router.push(`${CMS_BASE}/banners`)}>Cancelar</Button>
             <ActionMenu actions={[
-              { label: 'Duplicar', icon: 'copy', onClick: () => toast.push('info', 'Banner duplicado') },
-              { label: 'Archivar', icon: 'version', onClick: () => toast.push('info', 'Banner archivado') },
-              { label: 'Eliminar', icon: 'trash', danger: true, onClick: () => { toast.push('error', 'Banner eliminado'); router.push(`${CMS_BASE}/banners`) } },
+              { label: 'Duplicar', icon: 'copy', onClick: duplicate },
+              { label: 'Archivar (equivale a eliminar de la web)', icon: 'version', onClick: archive },
             ]} />
           </>
         }
