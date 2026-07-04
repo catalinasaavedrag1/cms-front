@@ -50,9 +50,14 @@ src/features/cms/services/
   cms.client.ts        Cliente HTTP único (cmsRequest) + withMockFallback + isCmsBackendEnabled
   cms-service.api.ts   Endpoints reales de cms-service (pages, contents, components,
                        menus, media, campaigns, seo, audit, publishing)
-  adapters.ts          cms-service → tipos de la UI (permisivos, best-effort)
+  adapters.ts          cms-service → tipos de la UI (permisivos; mapeo campo a
+                       campo documentado en §6b)
   cms-banners.api.ts   Banners (components HERO_BANNER) → real | mock
   cms-media.api.ts     Media (/media) → real | mock
+  cms-landings.api.ts  Landing pages (/pages pageType=LANDING) → real | mock
+  cms-campaigns.api.ts Campañas (/campaigns) → real | mock
+  cms-menus.api.ts     Menús (/menus; code→ubicación) → real | mock
+  cms-audit.api.ts     Auditoría (/audit, orden desc) → real | mock
   cms-dashboard.api.ts Overview (mock: cms-service no expone dashboard)
   simulate.ts          Mock async para dominios aún sin backend
 ```
@@ -148,6 +153,88 @@ Front CMS ─► cms-service (con el JWT + headers de gateway)
 El patrón está probado en banners/media: `withMockFallback(real→adapt, mock)`.
 Conectar un dominio nuevo = escribir su adaptador + su `cms-*.api.ts` + apuntar
 el `useCmsResource` del componente al servicio.
+
+---
+
+## 6b. Mapeo de campos por dominio (adaptadores)
+
+Cada dominio cableado tiene un adaptador en `services/adapters.ts` que traduce
+la entidad de cms-service al tipo de la UI. Tabla por dominio: **campo de la
+UI ← campo de cms-service**, qué significa (en simple) y con qué se conecta.
+Los campos sin fuente conocida se completan con valores neutros (a refinar
+contra payloads reales).
+
+### Banner (`componentToBanner`) — `components` tipo HERO_BANNER
+
+| Campo UI | ← cms-service | En simple | Se conecta con |
+|---|---|---|---|
+| `id` / `internalName` | `id` / `name` | Identificador y nombre interno del banner. | El BFF lo reexpone al ecommerce (`BffBanner`). |
+| `title`, `subtitle`, `cta`, `link` | `config.title/subtitle/cta/link` | Lo que se lee en el banner y a dónde lleva. | Carrusel de la home del ecommerce. |
+| `imageDesktop/Mobile/Tablet`, `alt` | `config.imageDesktop/…/alt` | Las imágenes por dispositivo y su texto alternativo. | Media library (URLs). |
+| `placement` | `config.placement` | En qué lugar de la tienda va (`home-hero`, `category-<slug>`). | El BFF pide banners por placement. |
+| `channel` / `device` | `config.channel` ó `salesChannel` / `config.device` | A qué público y dispositivo se muestra. | Segmentación B2C/B2B. |
+| `priority` / `startAt` / `endAt` | `config.priority/startAt/endAt` | Orden y ventana de vigencia. | Orden del carrusel; programación. |
+| `status` / `version` | `status` (normalizado a minúsculas) / `version` | Si está al aire y qué versión es. | Flujo editorial (publish/rollback). |
+| `clicks` / `impressions` | `config.clicks/impressions` | Métricas de rendimiento (si existen). | Panel de performance. |
+
+### Media (`toMediaAsset`) — `/media`
+
+| Campo UI | ← cms-service | En simple | Se conecta con |
+|---|---|---|---|
+| `name` / `url` | `fileName ?? name` / `url` | Nombre del archivo y dónde vive. | Banners/bloques que lo usan. |
+| `format` | `format ?? mimeType` (normalizado a JPG/PNG/WEBP/SVG/GIF/MP4) | Tipo de archivo. | Validaciones de subida. |
+| `weightKb` / `dimensions` / `alt` / `tags` / `folder` | homónimos | Peso, tamaño, texto alternativo, etiquetas y carpeta. | Búsqueda en la biblioteca. |
+| `usedIn` | `usedIn` | En qué piezas se está usando. | Evita borrar imágenes en uso. |
+| `status` | `status` (`active/orphan/expired`) | Activo, huérfano (nadie lo usa) o vencido. | Limpieza de la biblioteca. |
+
+### Landing page (`pageToLanding`) — `/pages` con `pageType=LANDING`
+
+| Campo UI | ← cms-service | En simple | Se conecta con |
+|---|---|---|---|
+| `internalName` / `h1` / `metaTitle` | `title` (+ `h1`/`metaTitle` si existen) | Nombre interno, titular de la página y título para Google. | SEO + render de la landing. |
+| `slug` / `canonicalUrl` | `slug` / `canonicalUrl` (o `/slug`) | La URL de la landing. | El ecommerce la pide como `/content/landings/:slug` vía BFF. |
+| `channel` | `salesChannel` | B2C/B2B/ambos. | Contenido por canal. |
+| `indexable` / `metaDescription` / `ogTitle` / `ogImage` / `schema` | homónimos (neutros si no vienen) | Lo que ve Google y las redes al compartir. | seo-service / metadata. |
+| `publishAt` / `endAt` | `publishedAt` / `endAt` | Ventana de publicación. | Programación (publishing). |
+| `activeVersion` / `sections` | `version` / largo de `sections[]` | Versión activa y cuántos bloques tiene. | Versionado + builder. |
+| `status` / `updatedAt` / `updatedBy` | homónimos | Estado editorial y última edición. | Flujo editorial / auditoría. |
+
+### Campaña (`toCampaign`) — `/campaigns`
+
+| Campo UI | ← cms-service | En simple | Se conecta con |
+|---|---|---|---|
+| `name` / `channel` | `name` / `salesChannel` | Cómo se llama y para qué público. | Agrupa piezas por campaña. |
+| `startAt` / `endAt` | `startsAt ?? startAt` / `endsAt ?? endAt` | Cuándo parte y termina. | Calendario de campañas. |
+| `owner` / `approver` | `owner ?? createdBy` / `approver` | Quién la lidera y quién la aprueba. | Flujo de aprobación. |
+| `pieces.*` | `pieces.{banners,landings,carousels,sections,faqs,seo}` (0 si no vienen) | Cuántas piezas de cada tipo agrupa. | `POST /campaigns/:id/contents`. |
+| `promotionId` | `promotionId` | Promoción comercial asociada (si existe). | promotion-service (referencia). |
+| `status` / `updatedAt` | homónimos | Estado y última edición. | Flujo editorial. |
+
+### Menú (`toMenu` + `toMenuItem`) — `/menus`
+
+| Campo UI | ← cms-service | En simple | Se conecta con |
+|---|---|---|---|
+| `name` | `name` | Nombre del menú. | — |
+| `location` | derivado de `code` (`footer→footer`, `mega→mega`, `mobile→mobile`, resto→`header`) | Dónde vive el menú. | El BFF pide el `code` **`main`** para el mega-menú de la tienda. |
+| `items[].label` / `.url` | `label` / `url` | Texto y link de cada entrada. | **El ecommerce extrae el slug de `url`** (`/categoria/:slug`) para colgar el subárbol. |
+| `items[].order` | `position` | Orden dentro del nivel. | Orden visual del mega-menú. |
+| `items[].visible` | `isVisible` | Oculto = no se pinta (permite preparar sin exponer). | Filtro en tienda y backoffice. |
+| `items[].children[]` | `children` (recursivo) | Subcategorías y sub-subcategorías. | Los 3 niveles del flyout. |
+| `itemCount` | calculado (conteo recursivo) | Cuántas entradas tiene en total. | Vista de lista del backoffice. |
+
+### Auditoría (`toAuditLog`) — `/audit`
+
+| Campo UI | ← cms-service | En simple | Se conecta con |
+|---|---|---|---|
+| `user` | `user ?? userId ?? createdBy` | Quién hizo el cambio. | id-service (identidad). |
+| `action` | `action` | Qué hizo (crear, publicar, rechazar…). | Flujo editorial. |
+| `entityType` / `entityName` | `entityType` / `entityName ?? entityId` | Sobre qué pieza. | `GET /audit/history/:entityType/:entityId`. |
+| `before` / `after` | homónimos | El antes y el después del cambio. | Diffs / rollback. |
+| `at` | `createdAt ?? timestamp ?? at` | Cuándo. | Orden del libro de novedades. |
+
+> Regla común de todos los adaptadores: `status` de cms-service llega en
+> MAYÚSCULAS y se normaliza a minúsculas para los badges de la UI; cualquier
+> valor desconocido cae a `draft` (nunca rompe el render).
 
 ---
 
