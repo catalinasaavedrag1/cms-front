@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useCmsResource } from '@/features/cms/hooks/useCmsResource'
-import { simulateRequest } from '@/features/cms/services/simulate'
+import { cmsAuditApi } from '@/features/cms/services/cms-audit.api'
 import { auditLogs } from '@/features/cms/mocks'
 import { FilterBar, type FilterDef } from '@/features/cms/components/common/FilterBar'
 import { Avatar, Button, CmsIcon, EmptyState, IconButton, PageHeader, Pagination, ResourceState } from '@/features/cms/components/ui'
@@ -12,7 +12,7 @@ const USERS = Array.from(new Set(auditLogs.map((a) => a.user)))
 const TYPES = Array.from(new Set(auditLogs.map((a) => a.entityType)))
 
 export function AuditLogTable() {
-  const { state, data, error } = useCmsResource(() => simulateRequest(auditLogs), [])
+  const { state, data, error } = useCmsResource(() => cmsAuditApi.list(), [])
   const [values, setValues] = useState<Record<string, string>>({ q: '', user: 'all', type: 'all' })
   const setV = (k: string, v: string) => setValues((s) => ({ ...s, [k]: v }))
   const rows = useMemo(

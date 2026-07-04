@@ -138,8 +138,12 @@ Front CMS ─► cms-service (con el JWT + headers de gateway)
 |---|---|
 | Banners | ✅ real (components HERO_BANNER) → mock fallback |
 | Media | ✅ real (`/media`) → mock fallback |
+| Landing pages | ✅ real (`/pages` pageType=LANDING) → mock fallback |
+| Campañas | ✅ real (`/campaigns`) → mock fallback |
+| Menús | ✅ real (`/menus`) → mock fallback |
+| Auditoría | ✅ real (`/audit`) → mock fallback |
 | Dashboard | 🟡 mock (cms-service no expone dashboard agregado) |
-| Páginas, contenido, menús, campañas, SEO, auditoría, publicación, secciones, segmentos, versiones, FAQ, experimentos | 🟡 mock — la **API real ya existe** en `cms-service.api.ts`; falta refinar el adaptador de cada dominio contra el payload real y cambiar el `loader` del componente de `simulateRequest(mock)` a `cmsXxxApi.list()` |
+| Contenido, SEO, publicación, secciones, segmentos, versiones, FAQ, experimentos | 🟡 mock — la **API real ya existe** en `cms-service.api.ts`; conectar cada dominio es mecánico (adaptador + cambiar el `loader` de `simulateRequest(mock)` a `cmsXxxApi.list()`) |
 
 El patrón está probado en banners/media: `withMockFallback(real→adapt, mock)`.
 Conectar un dominio nuevo = escribir su adaptador + su `cms-*.api.ts` + apuntar

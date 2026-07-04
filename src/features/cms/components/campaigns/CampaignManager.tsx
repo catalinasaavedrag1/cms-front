@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useCmsResource } from '@/features/cms/hooks/useCmsResource'
-import { simulateRequest } from '@/features/cms/services/simulate'
+import { cmsCampaignsApi } from '@/features/cms/services/cms-campaigns.api'
 import { campaigns } from '@/features/cms/mocks'
 import { CHANNEL_LABEL, CMS_BASE, STATUS_META, type Tone } from '@/features/cms/constants'
 import type { CmsCampaign } from '@/features/cms/types'
@@ -16,7 +16,7 @@ const rowMod = (t: Tone) => (t === 'success' ? '' : t === 'info' ? 'jc-row--bran
 const totalPieces = (c: CmsCampaign) => Object.values(c.pieces).reduce((s, n) => s + n, 0)
 
 export function CampaignManager() {
-  const { state, data, error } = useCmsResource(() => simulateRequest(campaigns), [])
+  const { state, data, error } = useCmsResource(() => cmsCampaignsApi.list(), [])
   const [values, setValues] = useState<Record<string, string>>({ q: '', status: 'all', channel: 'all' })
   const setV = (key: string, value: string) => setValues((s) => ({ ...s, [key]: value }))
 

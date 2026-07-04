@@ -1,7 +1,7 @@
 'use client'
 
 import { useCmsResource } from '@/features/cms/hooks/useCmsResource'
-import { simulateRequest } from '@/features/cms/services/simulate'
+import { cmsMenusApi } from '@/features/cms/services/cms-menus.api'
 import { menus } from '@/features/cms/mocks'
 import { CHANNEL_LABEL, STATUS_META, type Tone } from '@/features/cms/constants'
 import { Button, CmsIcon, EmptyState, IconButton, PageHeader, Pill, ResourceState, StatusPill } from '@/features/cms/components/ui'
@@ -11,7 +11,7 @@ const LOC: Record<string, string> = { header: 'Header', footer: 'Footer', mega: 
 const rowMod = (t: Tone) => (t === 'success' ? '' : t === 'info' ? 'jc-row--brand' : `jc-row--${t}`)
 
 export function MenuBuilder() {
-  const { state, data, error } = useCmsResource(() => simulateRequest(menus), [])
+  const { state, data, error } = useCmsResource(() => cmsMenusApi.list(), [])
   return (
     <div>
       <PageHeader eyebrow="Navegación" title="Menús" subtitle="Menús header/mobile/B2B/por sucursal con subniveles, íconos, links a categorías/landings y validación de links." actions={<Button variant="green" icon="plus">Nuevo menú</Button>} />
