@@ -68,6 +68,12 @@ export function listComponents(params?: ListParams): Promise<CmsPage<CmsSvcEntit
   return cmsRequest('/components', { query: listQuery(params), page: params?.page, pageSize: params?.pageSize })
 }
 export const getComponent = (id: string) => cmsRequest<CmsSvcEntity>(`/components/${encodeURIComponent(id)}`)
+export const createComponent = (payload: { componentType: string; name: string; data: Record<string, unknown>; status?: string }) =>
+  cmsRequest<CmsSvcEntity>('/components', { method: 'POST', body: payload })
+export const updateComponent = (id: string, payload: { name?: string; data?: Record<string, unknown>; status?: string }) =>
+  cmsRequest<CmsSvcEntity>(`/components/${encodeURIComponent(id)}`, { method: 'PATCH', body: payload })
+export const duplicateComponent = (id: string) =>
+  cmsRequest<CmsSvcEntity>(`/components/${encodeURIComponent(id)}/duplicate`, { method: 'POST' })
 
 /* --------------------------------- Menús --------------------------------- */
 export function listMenus(params?: ListParams): Promise<CmsPage<CmsSvcEntity>> {

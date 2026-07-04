@@ -207,3 +207,64 @@ export function toMenu(e: CmsSvcEntity): CmsMenu {
     status: toStatus(e.status),
   }
 }
+
+/* ----------------------- Adaptadores inversos (escritura) ---------------- */
+
+/**
+ * Formulario del BannerEditor → payload de cms-service (`/components`).
+ * El placement viaja como CÓDIGO (ej. "home-hero"): es lo que el BFF pide para
+ * armar la tienda — si el código no calza, el banner no aparece en la web.
+ */
+const PLACEMENT_CODES: Record<string, string> = {
+  'home · hero': 'home-hero',
+  'home hero': 'home-hero',
+  'home · franja': 'home-strip',
+  'categoría · header': 'category-header',
+}
+
+export function placementToCode(label: string): string {
+  const key = label.trim().toLowerCase()
+  return (
+    PLACEMENT_CODES[key] ??
+    key.replace(/\s*·\s*/g, '-').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  )
+}
+
+export interface BannerFormFields {
+  internalName: string
+  title: string
+  subtitle: string
+  cta: string
+  link: string
+  placement: string
+  channel: CmsChannel
+  device: CmsDevice
+  priority: number
+  alt: string
+  startAt: string
+  endAt: string
+}
+
+export function bannerFormToComponentPayload(
+  f: BannerFormFields,
+  imageDesktop?: string | null,
+): { componentType: string; name: string; data: Record<string, unknown> } {
+  return {
+    componentType: 'HERO_BANNER',
+    name: f.internalName || f.title || 'Banner sin nombre',
+    data: {
+      title: f.title,
+      subtitle: f.subtitle,
+      cta: f.cta,
+      link: f.link,
+      placement: placementToCode(f.placement),
+      channel: f.channel,
+      device: f.device,
+      priority: f.priority,
+      alt: f.alt,
+      startAt: f.startAt,
+      endAt: f.endAt,
+      ...(imageDesktop ? { imageDesktop } : {}),
+    },
+  }
+}
