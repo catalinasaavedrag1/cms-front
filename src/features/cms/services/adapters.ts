@@ -268,3 +268,47 @@ export function bannerFormToComponentPayload(
     },
   }
 }
+
+/** Formulario del LandingVisualBuilder → payload de página LANDING. */
+export interface LandingFormFields {
+  metaTitle: string
+  metaDescription: string
+  h1: string
+  slug: string
+  canonical: string
+  indexable: boolean
+  ogTitle: string
+  channel: CmsChannel
+}
+
+export function landingFormToPagePayload(f: LandingFormFields): {
+  pageType: string
+  title: string
+  slug: string
+  salesChannel?: string
+} {
+  return {
+    pageType: 'LANDING',
+    title: f.h1 || f.metaTitle || 'Landing sin título',
+    slug: f.slug.replace(/^\/+/, '') || 'landing',
+    // 'both' no existe en cms-service: se omite (aplica a todos los canales).
+    salesChannel: f.channel === 'b2b' ? 'B2B' : f.channel === 'b2c' ? 'B2C' : undefined,
+  }
+}
+
+/** Campos SEO del formulario → payload del módulo /seo (entidad LANDING). */
+export function landingFormToSeoPayload(f: LandingFormFields): Record<string, unknown> {
+  return {
+    metaTitle: f.metaTitle,
+    metaDescription: f.metaDescription,
+    canonicalUrl: f.canonical,
+    indexable: f.indexable,
+    ogTitle: f.ogTitle,
+  }
+}
+
+/** Slug estable para el code de una campaña ("Navidad 2026" → "navidad-2026"). */
+export function toCampaignCode(name: string): string {
+  return name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campana'
+}

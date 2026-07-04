@@ -143,9 +143,9 @@ Front CMS ─► cms-service (con el JWT + headers de gateway)
 |---|---|
 | Banners | ✅ lecturas **y ESCRITURAS**: crear/editar (`POST/PATCH /components`), publicar/despublicar/archivar (PATCH `status`), duplicar. El placement viaja como código (`home-hero`) para que el BFF lo encuentre. Sin backend: modo ejemplo con aviso. |
 | Media | ✅ real (`/media`) → mock fallback |
-| Landing pages | ✅ real (`/pages` pageType=LANDING) → mock fallback |
-| Campañas | ✅ real (`/campaigns`) → mock fallback |
-| Menús | ✅ real (`/menus`) → mock fallback |
+| Landing pages | ✅ lecturas **y ESCRITURAS**: crear/editar (`POST/PATCH /pages`) + SEO editable (`PUT /seo/LANDING/:id`) + workflow real (`publish`/`unpublish`/`archive` — el servicio valida transiciones) + duplicar. Builder cableado con carga real en edición y modo ejemplo con aviso. |
+| Campañas | ✅ lecturas + **mutaciones en capa de servicio** (`create`/`update`, code derivado del nombre); falta formulario en la UI (CampaignManager no tiene editor aún). |
+| Menús | ✅ lecturas + **mutaciones en capa de servicio** (`create`/`rename` + CRUD de items del árbol); el MegaMenuBuilder actual es demo estática — cablearlo cuando tenga estado editable. |
 | Auditoría | ✅ real (`/audit`) → mock fallback |
 | Dashboard | 🟡 mock (cms-service no expone dashboard agregado) |
 | Contenido, SEO, publicación, secciones, segmentos, versiones, FAQ, experimentos | 🟡 mock — la **API real ya existe** en `cms-service.api.ts`; conectar cada dominio es mecánico (adaptador + cambiar el `loader` de `simulateRequest(mock)` a `cmsXxxApi.list()`) |

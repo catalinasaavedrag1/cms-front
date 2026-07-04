@@ -56,6 +56,10 @@ export function listPages(params?: ListParams): Promise<CmsPage<CmsSvcEntity>> {
 export const getPage = (id: string) => cmsRequest<CmsSvcEntity>(`/pages/${encodeURIComponent(id)}`)
 export const getPageBySlug = (slug: string, locale?: string) =>
   cmsRequest<CmsSvcEntity>('/pages/by-slug', { query: { slug, locale } })
+export const createPage = (payload: { pageType: string; title: string; slug: string; salesChannel?: string; campaignId?: string }) =>
+  cmsRequest<CmsSvcEntity>('/pages', { method: 'POST', body: payload })
+export const updatePage = (id: string, payload: { title?: string; slug?: string; salesChannel?: string; changeSummary?: string }) =>
+  cmsRequest<CmsSvcEntity>(`/pages/${encodeURIComponent(id)}`, { method: 'PATCH', body: payload })
 
 /* ---------------------------- Contenido/bloques -------------------------- */
 export function listContents(params?: ListParams): Promise<CmsPage<CmsSvcEntity>> {
@@ -80,6 +84,16 @@ export function listMenus(params?: ListParams): Promise<CmsPage<CmsSvcEntity>> {
   return cmsRequest('/menus', { query: listQuery(params), page: params?.page, pageSize: params?.pageSize })
 }
 export const getMenuByCode = (code: string) => cmsRequest<CmsSvcEntity>(`/menus/by-code/${encodeURIComponent(code)}`)
+export const createMenu = (payload: { code: string; name: string; salesChannel?: string; items?: unknown[] }) =>
+  cmsRequest<CmsSvcEntity>('/menus', { method: 'POST', body: payload })
+export const updateMenu = (id: string, payload: { name?: string; salesChannel?: string }) =>
+  cmsRequest<CmsSvcEntity>(`/menus/${encodeURIComponent(id)}`, { method: 'PATCH', body: payload })
+export const addMenuItem = (menuId: string, item: { parentId?: string; label: string; url?: string; categoryId?: string; position?: number; isVisible?: boolean }) =>
+  cmsRequest<CmsSvcEntity>(`/menus/${encodeURIComponent(menuId)}/items`, { method: 'POST', body: item })
+export const updateMenuItem = (itemId: string, item: { label?: string; url?: string; position?: number; isVisible?: boolean }) =>
+  cmsRequest<CmsSvcEntity>(`/menus/items/${encodeURIComponent(itemId)}`, { method: 'PATCH', body: item })
+export const deleteMenuItem = (itemId: string) =>
+  cmsRequest<void>(`/menus/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' })
 
 /* --------------------------------- Media --------------------------------- */
 export function listMedia(params?: ListParams): Promise<CmsPage<CmsSvcEntity>> {
@@ -91,6 +105,10 @@ export function listCampaigns(params?: ListParams): Promise<CmsPage<CmsSvcEntity
   return cmsRequest('/campaigns', { query: listQuery(params), page: params?.page, pageSize: params?.pageSize })
 }
 export const getCampaign = (id: string) => cmsRequest<CmsSvcEntity>(`/campaigns/${encodeURIComponent(id)}`)
+export const createCampaign = (payload: { name: string; code: string; startsAt?: string; endsAt?: string; landingPageId?: string }) =>
+  cmsRequest<CmsSvcEntity>('/campaigns', { method: 'POST', body: payload })
+export const updateCampaign = (id: string, payload: { name?: string; startsAt?: string; endsAt?: string; status?: string }) =>
+  cmsRequest<CmsSvcEntity>(`/campaigns/${encodeURIComponent(id)}`, { method: 'PATCH', body: payload })
 
 /* ---------------------------------- SEO ---------------------------------- */
 export function listSeo(params?: ListParams): Promise<CmsPage<CmsSvcEntity>> {
@@ -115,3 +133,9 @@ export const unpublish = (resource: Resource, id: string) =>
   cmsRequest<CmsSvcEntity>(`/${resource}/${encodeURIComponent(id)}/unpublish`, { method: 'POST' })
 export const submitReview = (resource: Resource, id: string) =>
   cmsRequest<CmsSvcEntity>(`/${resource}/${encodeURIComponent(id)}/submit-review`, { method: 'POST' })
+export const archiveResource = (resource: Resource, id: string) =>
+  cmsRequest<CmsSvcEntity>(`/${resource}/${encodeURIComponent(id)}/archive`, { method: 'POST' })
+
+/** SEO editable por entidad (entityType: PAGE | LANDING | CATEGORY | BRAND | INSTITUTIONAL). */
+export const upsertSeo = (entityType: string, entityId: string, payload: Record<string, unknown>) =>
+  cmsRequest<CmsSvcEntity>(`/seo/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, { method: 'PUT', body: payload })

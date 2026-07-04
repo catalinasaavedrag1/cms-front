@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { landings } from '@/features/cms/mocks'
+import { cmsLandingsApi } from '@/features/cms/services/cms-landings.api'
+import { toUiError } from '@/features/cms/services/simulate'
 import { CHANNEL_LABEL, CMS_BASE } from '@/features/cms/constants'
 import type { CmsChannel } from '@/features/cms/types'
 import { ActionMenu, Button, CmsIcon, Field, PageHeader, Pill, SectionHeader, useToast } from '@/features/cms/components/ui'
@@ -20,6 +22,11 @@ export function LandingVisualBuilder({ landingId }: { landingId?: string }) {
   const router = useRouter()
   const existing = landingId && landingId !== 'new' ? landings.find((l) => l.id === landingId) : undefined
   const [tab, setTab] = useState('seo')
+  const [saving, setSaving] = useState(false)
+  // Id real en cms-service (en edición viene de la URL; al crear, del POST).
+  const [persistedId, setPersistedId] = useState<string | undefined>(
+    landingId && landingId !== 'new' ? landingId : undefined,
+  )
   const [f, setF] = useState({
     metaTitle: existing?.metaTitle ?? '',
     metaDescription: existing?.metaDescription ?? '',
@@ -34,6 +41,97 @@ export function LandingVisualBuilder({ landingId }: { landingId?: string }) {
   const [blocks, setBlocks] = useState<string[]>(['Hero', 'Beneficios', 'Carrusel de productos'])
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const toast = useToast()
+
+  // Modo edición con backend real: carga la landing desde cms-service y
+  // siembra el formulario (los ids reales no existen en los mocks).
+  useEffect(() => {
+    if (!persistedId || existing || !cmsLandingsApi.canPersist()) return
+    let alive = true
+    cmsLandingsApi.get(persistedId).then((l) => {
+      if (!alive || !l) return
+      setF({
+        metaTitle: l.metaTitle,
+        metaDescription: l.metaDescription,
+        h1: l.h1,
+        slug: l.slug ? `/${l.slug.replace(/^\/+/, '')}` : '/',
+        canonical: l.canonicalUrl,
+        indexable: l.indexable,
+        ogTitle: l.ogTitle,
+        channel: l.channel,
+      })
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** Guarda borrador en cms-service (página + SEO editable). */
+  const saveDraft = async () => {
+    if (!cmsLandingsApi.canPersist()) {
+      toast.push('info', 'Borrador guardado (modo ejemplo: sin backend, no persiste)')
+      return
+    }
+    setSaving(true)
+    try {
+      const saved = persistedId
+        ? await cmsLandingsApi.update(persistedId, f)
+        : await cmsLandingsApi.create(f)
+      setPersistedId(saved.id)
+      toast.push('success', 'Borrador guardado en el CMS')
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo guardar la landing'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Publica vía workflow real de pages (el servicio valida la transición). */
+  const publishLanding = async () => {
+    if (!cmsLandingsApi.canPersist()) {
+      toast.push('info', 'Publicada (modo ejemplo: sin backend, no persiste)')
+      return
+    }
+    if (!persistedId) {
+      toast.push('error', 'Guarda el borrador antes de publicar')
+      return
+    }
+    try {
+      await cmsLandingsApi.publish(persistedId)
+      toast.push('success', 'Landing publicada: disponible para la tienda vía BFF')
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo publicar (¿requiere aprobación previa?)'))
+    }
+  }
+
+  const duplicateLanding = async () => {
+    if (!cmsLandingsApi.canPersist() || !persistedId) {
+      toast.push('info', 'Landing duplicada (modo ejemplo)')
+      return
+    }
+    try {
+      const copy = await cmsLandingsApi.duplicate(persistedId)
+      toast.push('success', 'Landing duplicada')
+      router.push(`${CMS_BASE}/landing-pages/${copy.id}/builder`)
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo duplicar'))
+    }
+  }
+
+  const archiveLanding = async () => {
+    if (!cmsLandingsApi.canPersist() || !persistedId) {
+      toast.push('info', 'Landing archivada (modo ejemplo)')
+      router.push(`${CMS_BASE}/landing-pages`)
+      return
+    }
+    try {
+      await cmsLandingsApi.archive(persistedId)
+      toast.push('success', 'Landing archivada (fuera de la web)')
+      router.push(`${CMS_BASE}/landing-pages`)
+    } catch (e) {
+      toast.push('error', toUiError(e, 'No se pudo archivar'))
+    }
+  }
 
   const onDropBlock = (to: number) => {
     if (dragIdx === null || dragIdx === to) return
@@ -61,14 +159,13 @@ export function LandingVisualBuilder({ landingId }: { landingId?: string }) {
         actions={
           <>
             <Button variant="ghost" icon="eye">Previsualizar</Button>
-            <Button variant="green" icon="save" onClick={() => toast.push('success', 'Borrador de la landing guardado')}>Guardar borrador</Button>
-            <Button variant="blue" icon="published" onClick={() => toast.push('success', 'Landing publicada')}>Publicar</Button>
+            <Button variant="green" icon="save" onClick={saveDraft} disabled={saving}>{saving ? 'Guardando…' : 'Guardar borrador'}</Button>
+            <Button variant="blue" icon="published" onClick={publishLanding}>Publicar</Button>
             <Button variant="ghost" icon="cancel" onClick={() => router.push(`${CMS_BASE}/landing-pages`)}>Cancelar</Button>
             <ActionMenu actions={[
-              { label: 'Duplicar', icon: 'copy', onClick: () => toast.push('info', 'Landing duplicada') },
+              { label: 'Duplicar', icon: 'copy', onClick: duplicateLanding },
               { label: 'Ver en el sitio', icon: 'external', onClick: () => toast.push('info', 'Abriendo vista pública…') },
-              { label: 'Archivar', icon: 'version', onClick: () => toast.push('info', 'Landing archivada') },
-              { label: 'Eliminar', icon: 'trash', danger: true, onClick: () => { toast.push('error', 'Landing eliminada'); router.push(`${CMS_BASE}/landing-pages`) } },
+              { label: 'Archivar (equivale a eliminar de la web)', icon: 'version', onClick: archiveLanding },
             ]} />
           </>
         }
