@@ -8,7 +8,7 @@
  * la UI nunca se rompa. Deben **refinarse contra los payloads reales** cuando
  * cms-service esté integrado (ver docs/CONTRATOS-CMS.md → "Gaps y refinamiento").
  */
-import type { CmsBanner, CmsChannel, CmsDevice, CmsMediaAsset, CmsStatus, MediaFormat } from '@/features/cms/types'
+import type { CmsAuditLog, CmsBanner, CmsCampaign, CmsChannel, CmsDevice, CmsLandingPage, CmsMediaAsset, CmsMenu, CmsMenuItem, CmsStatus, MediaFormat } from '@/features/cms/types'
 import type { CmsSvcEntity } from './cms-service.api'
 
 function str(v: unknown, fallback = ''): string {
@@ -93,5 +93,117 @@ export function toMediaAsset(e: CmsSvcEntity): CmsMediaAsset {
     status: (['active', 'orphan', 'expired'] as string[]).includes(str(e.status).toLowerCase())
       ? (str(e.status).toLowerCase() as CmsMediaAsset['status'])
       : 'active',
+  }
+}
+
+/** Página LANDING de cms-service → CmsLandingPage de la UI. */
+export function pageToLanding(e: CmsSvcEntity): CmsLandingPage {
+  const sections = Array.isArray(e.sections) ? (e.sections as unknown[]).length : num(e.sectionsCount)
+  return {
+    id: e.id,
+    internalName: str(e.title ?? e.name, e.id),
+    slug: str(e.slug),
+    canonicalUrl: str(e.canonicalUrl, `/${str(e.slug)}`),
+    channel: toChannel(e.salesChannel),
+    type: 'campaign',
+    indexable: e.indexable !== false,
+    metaTitle: str(e.metaTitle ?? e.title),
+    metaDescription: str(e.metaDescription),
+    h1: str(e.h1 ?? e.title),
+    ogTitle: str(e.ogTitle),
+    ogImage: str(e.ogImage),
+    schema: str(e.schema),
+    publishAt: str(e.publishedAt ?? e.publishAt),
+    endAt: str(e.endAt),
+    segmentIds: Array.isArray(e.segmentIds) ? (e.segmentIds as string[]) : [],
+    activeVersion: num(e.version, 1),
+    sections,
+    status: toStatus(e.status),
+    views: num(e.views),
+    conversion: num(e.conversion),
+    updatedAt: str(e.updatedAt),
+    updatedBy: str(e.updatedBy, 'system'),
+  }
+}
+
+/** Campaña de cms-service → CmsCampaign de la UI (conteos neutros si no vienen). */
+export function toCampaign(e: CmsSvcEntity): CmsCampaign {
+  const pieces = (e.pieces ?? {}) as Record<string, unknown>
+  return {
+    id: e.id,
+    name: str(e.name, e.id),
+    channel: toChannel(e.salesChannel),
+    startAt: str(e.startsAt ?? e.startAt),
+    endAt: str(e.endsAt ?? e.endAt),
+    owner: str(e.owner ?? e.createdBy, 'system'),
+    approver: str(e.approver, '—'),
+    status: toStatus(e.status),
+    pieces: {
+      banners: num(pieces.banners),
+      landings: num(pieces.landings),
+      carousels: num(pieces.carousels),
+      sections: num(pieces.sections),
+      faqs: num(pieces.faqs),
+      seo: num(pieces.seo),
+    },
+    conflicts: num(e.conflicts),
+    promotionId: str(e.promotionId) || undefined,
+    updatedAt: str(e.updatedAt),
+  }
+}
+
+/** Registro de auditoría de cms-service → CmsAuditLog de la UI. */
+export function toAuditLog(e: CmsSvcEntity): CmsAuditLog {
+  return {
+    id: e.id,
+    user: str(e.user ?? e.userId ?? e.createdBy, 'system'),
+    action: str(e.action, '—'),
+    entityType: str(e.entityType, '—'),
+    entityName: str(e.entityName ?? e.entityId, '—'),
+    before: str(e.before),
+    after: str(e.after),
+    device: str(e.device, '—'),
+    at: str(e.createdAt ?? e.timestamp ?? e.at),
+  }
+}
+
+function toMenuItem(raw: Record<string, unknown>, idx: number): CmsMenuItem {
+  const children = Array.isArray(raw.children)
+    ? (raw.children as Record<string, unknown>[]).map((c, i) => toMenuItem(c, i))
+    : undefined
+  return {
+    id: str(raw.id, `item-${idx}`),
+    label: str(raw.label, '—'),
+    type: 'manual',
+    url: str(raw.url),
+    icon: str(raw.icon) || undefined,
+    order: num(raw.position ?? raw.order, idx),
+    channel: 'both',
+    device: 'all' as CmsDevice,
+    visible: raw.isVisible !== false,
+    children,
+  }
+}
+
+/** Menú de cms-service → CmsMenu de la UI. El code indica su ubicación. */
+export function toMenu(e: CmsSvcEntity): CmsMenu {
+  const code = str(e.code).toLowerCase()
+  const location: CmsMenu['location'] =
+    code.includes('footer') ? 'footer' : code.includes('mega') ? 'mega' : code.includes('mobile') ? 'mobile' : 'header'
+  const items = Array.isArray(e.items)
+    ? (e.items as Record<string, unknown>[]).map((i, idx) => toMenuItem(i, idx))
+    : []
+  const count = (list: CmsMenuItem[]): number =>
+    list.reduce((n, i) => n + 1 + count(i.children ?? []), 0)
+  return {
+    id: e.id,
+    name: str(e.name, e.id),
+    location,
+    channel: toChannel(e.salesChannel),
+    items,
+    itemCount: count(items),
+    brokenLinks: 0,
+    updatedAt: str(e.updatedAt),
+    status: toStatus(e.status),
   }
 }

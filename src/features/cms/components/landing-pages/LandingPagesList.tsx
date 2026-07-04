@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useCmsResource } from '@/features/cms/hooks/useCmsResource'
-import { simulateRequest } from '@/features/cms/services/simulate'
+import { cmsLandingsApi } from '@/features/cms/services/cms-landings.api'
 import { landings } from '@/features/cms/mocks'
 import { CHANNEL_LABEL, CMS_BASE, STATUS_META, type Tone } from '@/features/cms/constants'
 import type { CmsLandingPage, CmsStatus, LandingType } from '@/features/cms/types'
@@ -16,7 +16,7 @@ const STATUS_LIST: CmsStatus[] = ['published', 'in_review', 'scheduled', 'draft'
 const rowMod = (t: Tone) => (t === 'success' ? '' : t === 'info' ? 'jc-row--brand' : `jc-row--${t}`)
 
 export function LandingPagesList() {
-  const { state, data, error } = useCmsResource(() => simulateRequest(landings), [])
+  const { state, data, error } = useCmsResource(() => cmsLandingsApi.list(), [])
   const [values, setValues] = useState<Record<string, string>>({ q: '', status: 'all', type: 'all', channel: 'all' })
   const setV = (key: string, value: string) => setValues((s) => ({ ...s, [key]: value }))
 
